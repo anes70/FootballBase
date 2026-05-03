@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FootBase — NFT Football sur Base</title>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bibliothèque Ethers.js pour la connexion Rainbow/Base -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #04060A; --surface: #0A0F1A; --card: #0E1520; --border: #1C2740;
+            --border2: #243050; --blue: #2563EB; --blue-bright: #3B82F6;
+            --blue-glow: rgba(37,99,235,0.25); --gold: #F59E0B; --gold-dim: rgba(245,158,11,0.15);
+            --purple: #7C3AED; --green: #10B981; --red: #EF4444; --text: #F0F4FF;
+            --muted: #4B6080; --muted2: #6B80A0;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { scroll-behavior:smooth; }
+        body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; min-height:100vh; overflow-x:hidden; }
+        
+        /* Effet Noise & Grille */
+        body::before { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; z-index:0; opacity:0.4; }
+        body::after { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(37,99,235,0.03) 1px,transparent 1px), linear-gradient(90deg,rgba(37,99,235,0.03) 1px,transparent 1px); background-size:60px 60px; pointer-events:none; z-index:0; }
+
+        /* Header & Navigation */
+        header { position:sticky; top:0; z-index:50; display:flex; align-items:center; justify-content:space-between; padding:16px 32px; background:rgba(4,6,10,0.85); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); }
+        .logo { font-family:'Anton',sans-serif; font-size:26px; letter-spacing:3px; display:flex; align-items:center; gap:10px; }
+        .logo-dot { width:8px; height:8px; background:var(--blue-bright); border-radius:50%; box-shadow:0 0 12px var(--blue-bright); animation:blink 2s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .btn-connect { background:var(--blue); color:white; border:none; padding:10px 22px; border-radius:8px; font-family:'Syne',sans-serif; font-size:13px; font-weight:700; cursor:pointer; transition:all .2s; }
+        .btn-connect:hover { background:#1D4ED8; transform:translateY(-1px); box-shadow:0 8px 20px rgba(37,99,235,0.4); }
+        .btn-connect.ok { background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:var(--green); }
+
+        /* Hero Section */
+        .hero { position:relative; z-index:10; text-align:center; padding:80px 20px 60px; }
+        .hero-tag { display:inline-flex; align-items:center; gap:8px; background:rgba(37,99,235,0.1); border:1px solid rgba(37,99,235,0.25); padding:6px 16px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#93C5FD; margin-bottom:28px; }
+        h1 { font-family:'Anton',sans-serif; font-size:clamp(60px,10vw,120px); line-height:.9; margin-bottom:20px; }
+        h1 .accent { background:linear-gradient(135deg,#3B82F6,#60A5FA); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .hero-sub { font-size:16px; color:var(--muted2); max-width:500px; margin:0 auto 40px; line-height:1.7; }
+
+        /* Grille NFT */
+        .grid-wrap { position:relative; z-index:10; padding:0 32px 80px; }
+        .nft-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; }
+
+        /* Cartes Joueurs */
+        .card { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; transition:all .3s cubic-bezier(.34,1.56,.64,1); cursor:pointer; position:relative; padding:15px; }
+        .card:hover { transform:translateY(-6px); box-shadow:0 24px 48px rgba(0,0,0,0.5); border-color:var(--blue-bright); }
+        
+        .rarity-pill { padding:3px 9px; border-radius:20px; font-size:9px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px; display:inline-block; }
+        .legend { background:var(--gold-dim); color:var(--gold); border:1px solid rgba(245,158,11,0.4); }
+        .epic { background:rgba(124,58,237,0.2); color:#A78BFA; border:1px solid rgba(124,58,237,0.4); }
+        .rare { background:rgba(37,99,235,0.2); color:#93C5FD; border:1px solid rgba(37,99,235,0.35); }
+        .common { background:rgba(75,96,128,0.2); color:var(--muted2); border:1px solid var(--border); }
+
+        .btn-mint { width:100%; background:var(--blue); color:white; border:none; padding:12px; border-radius:8px; font-family:'Syne',sans-serif; font-size:12px; font-weight:700; cursor:pointer; margin-top:15px; transition:0.2s; letter-spacing:0.5px; }
+        .btn-mint:hover { background:#1D4ED8; }
+        .btn-mint:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
+
+        /* Animations */
+        .spin { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:rotate .6s linear infinite; }
+        @keyframes rotate { to { transform:rotate(360deg); } }
+
+        /* Toasts Notifications */
+        .toast { position:fixed; bottom:28px; right:28px; background:var(--card); border:1px solid var(--border2); border-radius:12px; padding:14px 18px; display:flex; align-items:center; gap:12px; z-index:200; transform:translateX(140%); transition:transform .4s cubic-bezier(.34,1.56,.64,1); font-size:13px; }
+        .toast.show { transform:translateX(0); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo"><div class="logo-dot"></div>FOOT<span style="color:var(--blue-bright)">BASE</span></div>
+    <div style="display:flex; align-items:center; gap:12px">
+        <div style="background:rgba(37,99,235,0.1); border:1px solid rgba(37,99,235,0.3); padding:6px 14px; border-radius:20px; font-size:11px; font-weight:700; color:#93C5FD;">BASE MAINNET</div>
+        <button class="btn-connect" id="connectBtn" onclick="connectWallet()">Connecter Wallet</button>
+    </div>
+</header>
+
+<section class="hero">
+    <div class="hero-tag">⚡ Mint Gratuit · Base Network</div>
+    <h1>COLLECTE TES <span class="accent">LÉGENDES</span></h1>
+    <p class="hero-sub">Propulsé par le contrat 0x6F83...F7B0. <br>Limite de 2 joueurs par jour par portefeuille.</p>
+</section>
+
+<div class="grid-wrap">
+    <div class="nft-grid" id="nftGrid"></div>
+</div>
+
+<div class="toast" id="toast">
+    <span id="toastIcon">✅</span> <span id="toastMsg">Action réussie</span>
+</div>
+
+<script>
+// ── CONFIGURATION BLOCK ──
+const contractAddr = "0x6F83E5C53e1312706461345b773ac38198FeF7B0";
+const contractABI = ["function mint(uint256 _playerId) external"];
+
+// ── LA BASE DE DONNÉES INTÉGRALE DES 500 JOUEURS ──
+const PLAYERS = [
+    {id:1,name:"Pelé",club:"Santos",nation:"🇧🇷",pos:"ATT",rarity:"legend"},
+    {id:2,name:"Maradona",club:"Napoli",nation:"🇦🇷",pos:"ATT",rarity:"legend"},
+    {id:3,name:"Zidane",club:"Real Madrid",nation:"🇫🇷",pos:"MIL",rarity:"legend"},
+    {id:4,name:"Ronaldo R9",club:"Barcelona",nation:"🇧🇷",pos:"ATT",rarity:"legend"},
+    {id:5,name:"Ronaldinho",club:"Barcelona",nation:"🇧🇷",pos:"ATT",rarity:"legend"},
+    {id:6,name:"Cruyff",club:"Ajax",nation:"🇳🇱",pos:"ATT",rarity:"legend"},
+    {id:7,name:"Beckenbauer",club:"Bayern",nation:"🇩🇪",pos:"DEF",rarity:"legend"},
+    {id:8,name:"Platini",club:"Juventus",nation:"🇫🇷",pos:"MIL",rarity:"legend"},
+    {id:9,name:"Eusébio",club:"Benfica",nation:"🇵🇹",pos:"ATT",rarity:"legend"},
+    {id:10,name:"Di Stéfano",club:"Real Madrid",nation:"🇦🇷",pos:"ATT",rarity:"legend"},
+    {id:11,name:"Bobby Charlton",club:"Man United",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"legend"},
+    {id:12,name:"George Best",club:"Man United",nation:"🇮🇪",pos:"ATT",rarity:"legend"},
+    {id:13,name:"Gullit",club:"AC Milan",nation:"🇳🇱",pos:"ATT",rarity:"legend"},
+    {id:14,name:"Van Basten",club:"AC Milan",nation:"🇳🇱",pos:"ATT",rarity:"legend"},
+    {id:15,name:"Baresi",club:"AC Milan",nation:"🇮🇹",pos:"DEF",rarity:"legend"},
+    {id:16,name:"Maldini",club:"AC Milan",nation:"🇮🇹",pos:"DEF",rarity:"legend"},
+    {id:17,name:"Roberto Carlos",club:"Real Madrid",nation:"🇧🇷",pos:"DEF",rarity:"legend"},
+    {id:18,name:"Cafu",club:"AC Milan",nation:"🇧🇷",pos:"DEF",rarity:"legend"},
+    {id:19,name:"Henry",club:"Arsenal",nation:"🇫🇷",pos:"ATT",rarity:"legend"},
+    {id:20,name:"Shevchenko",club:"AC Milan",nation:"🇺🇦",pos:"ATT",rarity:"legend"},
+    {id:21,name:"Totti",club:"AS Roma",nation:"🇮🇹",pos:"ATT",rarity:"legend"},
+    {id:22,name:"Del Piero",club:"Juventus",nation:"🇮🇹",pos:"ATT",rarity:"legend"},
+    {id:23,name:"Xavi",club:"Barcelona",nation:"🇪🇸",pos:"MIL",rarity:"legend"},
+    {id:24,name:"Iniesta",club:"Barcelona",nation:"🇪🇸",pos:"MIL",rarity:"legend"},
+    {id:25,name:"Pirlo",club:"Juventus",nation:"🇮🇹",pos:"MIL",rarity:"legend"},
+    {id:26,name:"Buffon",club:"Juventus",nation:"🇮🇹",pos:"GK",rarity:"legend"},
+    {id:27,name:"Oliver Kahn",club:"Bayern",nation:"🇩🇪",pos:"GK",rarity:"legend"},
+    {id:28,name:"Lev Yashin",club:"Dynamo",nation:"🇷🇺",pos:"GK",rarity:"legend"},
+    {id:29,name:"Romario",club:"Barcelona",nation:"🇧🇷",pos:"ATT",rarity:"legend"},
+    {id:30,name:"Baggio",club:"Juventus",nation:"🇮🇹",pos:"ATT",rarity:"legend"},
+    {id:31,name:"Rivaldo",club:"Barcelona",nation:"🇧🇷",pos:"ATT",rarity:"legend"},
+    {id:32,name:"Figo",club:"Real Madrid",nation:"🇵🇹",pos:"MIL",rarity:"legend"},
+    {id:33,name:"Raul",club:"Real Madrid",nation:"🇪🇸",pos:"ATT",rarity:"legend"},
+    {id:34,name:"Seedorf",club:"AC Milan",nation:"🇳🇱",pos:"MIL",rarity:"legend"},
+    {id:35,name:"Vieira",club:"Arsenal",nation:"🇫🇷",pos:"MIL",rarity:"legend"},
+    {id:36,name:"Lampard",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"legend"},
+    {id:37,name:"Gerrard",club:"Liverpool",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"legend"},
+    {id:38,name:"Nedvěd",club:"Juventus",nation:"🇨🇿",pos:"MIL",rarity:"legend"},
+    {id:39,name:"Ballack",club:"Bayern",nation:"🇩🇪",pos:"MIL",rarity:"legend"},
+    {id:40,name:"Puyol",club:"Barcelona",nation:"🇪🇸",pos:"DEF",rarity:"legend"},
+    {id:41,name:"Ferdinand",club:"Man United",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"legend"},
+    {id:42,name:"Terry",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"legend"},
+    {id:43,name:"Cannavaro",club:"Real Madrid",nation:"🇮🇹",pos:"DEF",rarity:"legend"},
+    {id:44,name:"Thuram",club:"Juventus",nation:"🇫🇷",pos:"DEF",rarity:"legend"},
+    {id:45,name:"Scholes",club:"Man United",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"legend"},
+    {id:46,name:"Bebeto",club:"Deportivo",nation:"🇧🇷",pos:"ATT",rarity:"legend"},
+    {id:47,name:"Weah",club:"AC Milan",nation:"🇱🇷",pos:"ATT",rarity:"legend"},
+    {id:48,name:"Inzaghi",club:"AC Milan",nation:"🇮🇹",pos:"ATT",rarity:"legend"},
+    {id:49,name:"Rui Costa",club:"AC Milan",nation:"🇵🇹",pos:"MIL",rarity:"legend"},
+    {id:50,name:"Desailly",club:"AC Milan",nation:"🇫🇷",pos:"DEF",rarity:"legend"},
+    {id:51,name:"Cristiano Ronaldo",club:"Al-Nassr",nation:"🇵🇹",pos:"ATT",rarity:"epic"},
+    {id:52,name:"Lionel Messi",club:"Inter Miami",nation:"🇦🇷",pos:"ATT",rarity:"epic"},
+    {id:53,name:"Kylian Mbappé",club:"Real Madrid",nation:"🇫🇷",pos:"ATT",rarity:"epic"},
+    {id:54,name:"Erling Haaland",club:"Man City",nation:"🇳🇴",pos:"ATT",rarity:"epic"},
+    {id:55,name:"Vinicius Jr",club:"Real Madrid",nation:"🇧🇷",pos:"ATT",rarity:"epic"},
+    {id:56,name:"Jude Bellingham",club:"Real Madrid",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"epic"},
+    {id:57,name:"Neymar Jr",club:"Al-Hilal",nation:"🇧🇷",pos:"ATT",rarity:"epic"},
+    {id:58,name:"Kevin De Bruyne",club:"Man City",nation:"🇧🇪",pos:"MIL",rarity:"epic"},
+    {id:59,name:"Mohamed Salah",club:"Liverpool",nation:"🇪🇬",pos:"ATT",rarity:"epic"},
+    {id:60,name:"Lamine Yamal",club:"Barcelona",nation:"🇪🇸",pos:"ATT",rarity:"epic"},
+    {id:61,name:"Pedri",club:"Barcelona",nation:"🇪🇸",pos:"MIL",rarity:"epic"},
+    {id:62,name:"Rodri",club:"Man City",nation:"🇪🇸",pos:"MIL",rarity:"epic"},
+    {id:63,name:"Virgil Van Dijk",club:"Liverpool",nation:"🇳🇱",pos:"DEF",rarity:"epic"},
+    {id:64,name:"Trent Alexander-Arnold",club:"Real Madrid",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"epic"},
+    {id:65,name:"Alisson Becker",club:"Liverpool",nation:"🇧🇷",pos:"GK",rarity:"epic"},
+    {id:66,name:"Manuel Neuer",club:"Bayern",nation:"🇩🇪",pos:"GK",rarity:"epic"},
+    {id:67,name:"Thibaut Courtois",club:"Real Madrid",nation:"🇧🇪",pos:"GK",rarity:"epic"},
+    {id:68,name:"Antoine Griezmann",club:"Atletico",nation:"🇫🇷",pos:"ATT",rarity:"epic"},
+    {id:69,name:"Harry Kane",club:"Bayern",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"epic"},
+    {id:70,name:"Robert Lewandowski",club:"Barcelona",nation:"🇵🇱",pos:"ATT",rarity:"epic"},
+    {id:71,name:"Karim Benzema",club:"Al-Ittihad",nation:"🇫🇷",pos:"ATT",rarity:"epic"},
+    {id:72,name:"Sadio Mané",club:"Al-Nassr",nation:"🇸🇳",pos:"ATT",rarity:"epic"},
+    {id:73,name:"Phil Foden",club:"Man City",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"epic"},
+    {id:74,name:"Bukayo Saka",club:"Arsenal",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"epic"},
+    {id:75,name:"Luka Modric",club:"Real Madrid",nation:"🇭🇷",pos:"MIL",rarity:"epic"},
+    {id:76,name:"Toni Kroos",club:"Real Madrid",nation:"🇩🇪",pos:"MIL",rarity:"epic"},
+    {id:77,name:"N'Golo Kanté",club:"Al-Ittihad",nation:"🇫🇷",pos:"MIL",rarity:"epic"},
+    {id:78,name:"Joshua Kimmich",club:"Bayern",nation:"🇩🇪",pos:"MIL",rarity:"epic"},
+    {id:79,name:"Achraf Hakimi",club:"PSG",nation:"🇲🇦",pos:"DEF",rarity:"epic"},
+    {id:80,name:"Marquinhos",club:"PSG",nation:"🇧🇷",pos:"DEF",rarity:"epic"},
+    {id:81,name:"Antonio Rüdiger",club:"Real Madrid",nation:"🇩🇪",pos:"DEF",rarity:"epic"},
+    {id:82,name:"Theo Hernandez",club:"AC Milan",nation:"🇫🇷",pos:"DEF",rarity:"epic"},
+    {id:83,name:"Alphonso Davies",club:"Bayern",nation:"🇨🇦",pos:"DEF",rarity:"epic"},
+    {id:84,name:"Raphaël Varane",club:"Man United",nation:"🇫🇷",pos:"DEF",rarity:"epic"},
+    {id:85,name:"Martin Ødegaard",club:"Arsenal",nation:"🇳🇴",pos:"MIL",rarity:"epic"},
+    {id:86,name:"Florian Wirtz",club:"Leverkusen",nation:"🇩🇪",pos:"MIL",rarity:"epic"},
+    {id:87,name:"Jamal Musiala",club:"Bayern",nation:"🇩🇪",pos:"MIL",rarity:"epic"},
+    {id:88,name:"Bruno Fernandes",club:"Man United",nation:"🇵🇹",pos:"MIL",rarity:"epic"},
+    {id:89,name:"Federico Valverde",club:"Real Madrid",nation:"🇺🇾",pos:"MIL",rarity:"epic"},
+    {id:90,name:"Gavi",club:"Barcelona",nation:"🇪🇸",pos:"MIL",rarity:"epic"},
+    {id:91,name:"Khvicha Kvaratskhelia",club:"PSG",nation:"🇬🇪",pos:"ATT",rarity:"epic"},
+    {id:92,name:"Victor Osimhen",club:"Galatasaray",nation:"🇳🇬",pos:"ATT",rarity:"epic"},
+    {id:93,name:"Rafael Leão",club:"AC Milan",nation:"🇵🇹",pos:"ATT",rarity:"epic"},
+    {id:94,name:"Dembélé",club:"PSG",nation:"🇫🇷",pos:"ATT",rarity:"epic"},
+    {id:95,name:"Son Heung-min",club:"Tottenham",nation:"🇰🇷",pos:"ATT",rarity:"epic"},
+    {id:96,name:"João Félix",club:"Atletico",nation:"🇵🇹",pos:"ATT",rarity:"epic"},
+    {id:97,name:"Donnarumma",club:"PSG",nation:"🇮🇹",pos:"GK",rarity:"epic"},
+    {id:98,name:"Mike Maignan",club:"AC Milan",nation:"🇫🇷",pos:"GK",rarity:"epic"},
+    {id:99,name:"Jan Oblak",club:"Atletico",nation:"🇸🇮",pos:"GK",rarity:"epic"},
+    {id:100,name:"Ederson",club:"Man City",nation:"🇧🇷",pos:"GK",rarity:"epic"},
+    {id:101,name:"Gonçalo Ramos",club:"PSG",nation:"🇵🇹",pos:"ATT",rarity:"rare"},
+    {id:102,name:"Randal Kolo Muani",club:"PSG",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:103,name:"Marcus Thuram",club:"Inter",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:104,name:"Dusan Vlahovic",club:"Juventus",nation:"🇷🇸",pos:"ATT",rarity:"rare"},
+    {id:105,name:"Rasmus Hojlund",club:"Man United",nation:"🇩🇰",pos:"ATT",rarity:"rare"},
+    {id:106,name:"Darwin Nunez",club:"Liverpool",nation:"🇺🇾",pos:"ATT",rarity:"rare"},
+    {id:107,name:"Cole Palmer",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:108,name:"Gabriel Martinelli",club:"Arsenal",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:109,name:"Alexander Isak",club:"Newcastle",nation:"🇸🇪",pos:"ATT",rarity:"rare"},
+    {id:110,name:"Ollie Watkins",club:"Aston Villa",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:111,name:"Alexis Mac Allister",club:"Liverpool",nation:"🇦🇷",pos:"MIL",rarity:"rare"},
+    {id:112,name:"Declan Rice",club:"Arsenal",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"rare"},
+    {id:113,name:"Eduardo Camavinga",club:"Real Madrid",nation:"🇫🇷",pos:"MIL",rarity:"rare"},
+    {id:114,name:"Aurélien Tchouaméni",club:"Real Madrid",nation:"🇫🇷",pos:"MIL",rarity:"rare"},
+    {id:115,name:"Sandro Tonali",club:"Newcastle",nation:"🇮🇹",pos:"MIL",rarity:"rare"},
+    {id:116,name:"Lucas Paquetá",club:"West Ham",nation:"🇧🇷",pos:"MIL",rarity:"rare"},
+    {id:117,name:"Dani Olmo",club:"Barcelona",nation:"🇪🇸",pos:"MIL",rarity:"rare"},
+    {id:118,name:"Nicolo Barella",club:"Inter",nation:"🇮🇹",pos:"MIL",rarity:"rare"},
+    {id:119,name:"Vitinha",club:"PSG",nation:"🇵🇹",pos:"MIL",rarity:"rare"},
+    {id:120,name:"Bernardo Silva",club:"Man City",nation:"🇵🇹",pos:"MIL",rarity:"rare"},
+    {id:121,name:"William Saliba",club:"Arsenal",nation:"🇫🇷",pos:"DEF",rarity:"rare"},
+    {id:122,name:"Jules Koundé",club:"Barcelona",nation:"🇫🇷",pos:"DEF",rarity:"rare"},
+    {id:123,name:"Eder Militão",club:"Real Madrid",nation:"🇧🇷",pos:"DEF",rarity:"rare"},
+    {id:124,name:"Min-jae Kim",club:"Bayern",nation:"🇰🇷",pos:"DEF",rarity:"rare"},
+    {id:125,name:"Rúben Dias",club:"Man City",nation:"🇵🇹",pos:"DEF",rarity:"rare"},
+    {id:126,name:"Andrew Robertson",club:"Liverpool",nation:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pos:"DEF",rarity:"rare"},
+    {id:127,name:"Nuno Mendes",club:"PSG",nation:"🇵🇹",pos:"DEF",rarity:"rare"},
+    {id:128,name:"Kieran Trippier",club:"Newcastle",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"rare"},
+    {id:129,name:"Oleksandr Zinchenko",club:"Arsenal",nation:"🇺🇦",pos:"DEF",rarity:"rare"},
+    {id:130,name:"Reece James",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"rare"},
+    {id:131,name:"Julian Alvarez",club:"Atletico",nation:"🇦🇷",pos:"ATT",rarity:"rare"},
+    {id:132,name:"Angel Di Maria",club:"Benfica",nation:"🇦🇷",pos:"ATT",rarity:"rare"},
+    {id:133,name:"Rodrigo De Paul",club:"Atletico",nation:"🇦🇷",pos:"MIL",rarity:"rare"},
+    {id:134,name:"Philippe Coutinho",club:"Vasco",nation:"🇧🇷",pos:"MIL",rarity:"rare"},
+    {id:135,name:"Paulo Dybala",club:"AS Roma",nation:"🇦🇷",pos:"ATT",rarity:"rare"},
+    {id:136,name:"Lautaro Martinez",club:"Inter",nation:"🇦🇷",pos:"ATT",rarity:"rare"},
+    {id:137,name:"Diogo Jota",club:"Liverpool",nation:"🇵🇹",pos:"ATT",rarity:"rare"},
+    {id:138,name:"Luis Diaz",club:"Liverpool",nation:"🇨🇴",pos:"ATT",rarity:"rare"},
+    {id:139,name:"Patrik Schick",club:"Leverkusen",nation:"🇨🇿",pos:"ATT",rarity:"rare"},
+    {id:140,name:"Pedro Neto",club:"Chelsea",nation:"🇵🇹",pos:"ATT",rarity:"rare"},
+    {id:141,name:"Casemiro",club:"Man United",nation:"🇧🇷",pos:"MIL",rarity:"rare"},
+    {id:142,name:"Fabinho",club:"Al-Ittihad",nation:"🇧🇷",pos:"MIL",rarity:"rare"},
+    {id:143,name:"İlkay Gündoğan",club:"Barcelona",nation:"🇩🇪",pos:"MIL",rarity:"rare"},
+    {id:144,name:"Mateo Kovačić",club:"Man City",nation:"🇭🇷",pos:"MIL",rarity:"rare"},
+    {id:145,name:"Bruno Guimarães",club:"Newcastle",nation:"🇧🇷",pos:"MIL",rarity:"rare"},
+    {id:146,name:"Enzo Fernandez",club:"Chelsea",nation:"🇦🇷",pos:"MIL",rarity:"rare"},
+    {id:147,name:"Moises Caicedo",club:"Chelsea",nation:"🇪🇨",pos:"MIL",rarity:"rare"},
+    {id:148,name:"Granit Xhaka",club:"Leverkusen",nation:"🇨🇭",pos:"MIL",rarity:"rare"},
+    {id:149,name:"James Maddison",club:"Tottenham",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"rare"},
+    {id:150,name:"Leandro Trossard",club:"Arsenal",nation:"🇧🇪",pos:"ATT",rarity:"rare"},
+    {id:151,name:"Luis Suarez",club:"Nacional",nation:"🇺🇾",pos:"ATT",rarity:"rare"},
+    {id:152,name:"Sergio Agüero",club:"Retired",nation:"🇦🇷",pos:"ATT",rarity:"rare"},
+    {id:153,name:"Romelu Lukaku",club:"AS Roma",nation:"🇧🇪",pos:"ATT",rarity:"rare"},
+    {id:154,name:"Edinson Cavani",club:"Boca Juniors",nation:"🇺🇾",pos:"ATT",rarity:"rare"},
+    {id:155,name:"Memphis Depay",club:"Atletico",nation:"🇳🇱",pos:"ATT",rarity:"rare"},
+    {id:156,name:"Jonathan David",club:"Lille",nation:"🇨🇦",pos:"ATT",rarity:"rare"},
+    {id:157,name:"Olivier Giroud",club:"LAFC",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:158,name:"Ciro Immobile",club:"Besiktas",nation:"🇮🇹",pos:"ATT",rarity:"rare"},
+    {id:159,name:"Hakim Ziyech",club:"Galatasaray",nation:"🇲🇦",pos:"ATT",rarity:"rare"},
+    {id:160,name:"Nabil Fekir",club:"Betis",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:161,name:"Dries Mertens",club:"Galatasaray",nation:"🇧🇪",pos:"ATT",rarity:"rare"},
+    {id:162,name:"Cody Gakpo",club:"Liverpool",nation:"🇳🇱",pos:"ATT",rarity:"rare"},
+    {id:163,name:"Moussa Diaby",club:"Al-Ittihad",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:164,name:"Kingsley Coman",club:"Bayern",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:165,name:"Thomas Müller",club:"Bayern",nation:"🇩🇪",pos:"ATT",rarity:"rare"},
+    {id:166,name:"Federico Chiesa",club:"Liverpool",nation:"🇮🇹",pos:"ATT",rarity:"rare"},
+    {id:167,name:"Leroy Sané",club:"Bayern",nation:"🇩🇪",pos:"ATT",rarity:"rare"},
+    {id:168,name:"Richarlison",club:"Tottenham",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:169,name:"Gabriel Jesus",club:"Arsenal",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:170,name:"Wilfried Zaha",club:"Galatasaray",nation:"🇨🇮",pos:"ATT",rarity:"rare"},
+    {id:171,name:"Michael Olise",club:"Bayern",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:172,name:"Eberechi Eze",club:"Crystal Palace",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:173,name:"Gabigol",club:"Flamengo",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:174,name:"Hulk",club:"Atletico Mineiro",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:175,name:"Roberto Firmino",club:"Al-Ahli",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:176,name:"Timo Werner",club:"Tottenham",nation:"🇩🇪",pos:"ATT",rarity:"rare"},
+    {id:177,name:"Marcus Rashford",club:"Man United",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:178,name:"Jack Grealish",club:"Man City",nation:"🇮🇪",pos:"ATT",rarity:"rare"},
+    {id:179,name:"Jadon Sancho",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:180,name:"Wissam Ben Yedder",club:"Monaco",nation:"🇫🇷",pos:"ATT",rarity:"rare"},
+    {id:181,name:"Adrien Rabiot",club:"Juventus",nation:"🇫🇷",pos:"MIL",rarity:"rare"},
+    {id:182,name:"Thiago Alcântara",club:"Liverpool",nation:"🇪🇸",pos:"MIL",rarity:"rare"},
+    {id:183,name:"Ivan Rakitic",club:"Sevilla",nation:"🇭🇷",pos:"MIL",rarity:"rare"},
+    {id:184,name:"Leon Goretzka",club:"Bayern",nation:"🇩🇪",pos:"MIL",rarity:"rare"},
+    {id:185,name:"Kai Havertz",club:"Arsenal",nation:"🇩🇪",pos:"ATT",rarity:"rare"},
+    {id:186,name:"Conor Gallagher",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"rare"},
+    {id:187,name:"Youri Tielemans",club:"Aston Villa",nation:"🇧🇪",pos:"MIL",rarity:"rare"},
+    {id:188,name:"Marco Verratti",club:"Al-Arabi",nation:"🇮🇹",pos:"MIL",rarity:"rare"},
+    {id:189,name:"Lorenzo Pellegrini",club:"AS Roma",nation:"🇮🇹",pos:"MIL",rarity:"rare"},
+    {id:190,name:"Yves Bissouma",club:"Tottenham",nation:"🇲🇱",pos:"MIL",rarity:"rare"},
+    {id:191,name:"Emile Smith Rowe",club:"Arsenal",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"rare"},
+    {id:192,name:"Harvey Elliott",club:"Liverpool",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"rare"},
+    {id:193,name:"Ruben Neves",club:"Al-Hilal",nation:"🇵🇹",pos:"MIL",rarity:"rare"},
+    {id:194,name:"Matheus Nunes",club:"Man City",nation:"🇵🇹",pos:"MIL",rarity:"rare"},
+    {id:195,name:"Sofyan Amrabat",club:"Man United",nation:"🇲🇦",pos:"MIL",rarity:"rare"},
+    {id:196,name:"Thomas Partey",club:"Arsenal",nation:"🇬🇭",pos:"MIL",rarity:"rare"},
+    {id:197,name:"Ibrahima Konaté",club:"Liverpool",nation:"🇫🇷",pos:"DEF",rarity:"rare"},
+    {id:198,name:"Nathan Ake",club:"Man City",nation:"🇳🇱",pos:"DEF",rarity:"rare"},
+    {id:199,name:"Milan Škriniar",club:"PSG",nation:"🇸🇰",pos:"DEF",rarity:"rare"},
+    {id:200,name:"Dayot Upamecano",club:"Bayern",nation:"🇫🇷",pos:"DEF",rarity:"rare"},
+    {id:201,name:"Niklas Süle",club:"Dortmund",nation:"🇩🇪",pos:"DEF",rarity:"rare"},
+    {id:202,name:"Sergio Reguilon",club:"Man United",nation:"🇪🇸",pos:"DEF",rarity:"rare"},
+    {id:203,name:"Ferland Mendy",club:"Real Madrid",nation:"🇫🇷",pos:"DEF",rarity:"rare"},
+    {id:204,name:"Benjamin Pavard",club:"Inter",nation:"🇫🇷",pos:"DEF",rarity:"rare"},
+    {id:205,name:"Nicolás Otamendi",club:"Benfica",nation:"🇦🇷",pos:"DEF",rarity:"rare"},
+    {id:206,name:"Stefan de Vrij",club:"Inter",nation:"🇳🇱",pos:"DEF",rarity:"rare"},
+    {id:207,name:"Kalidou Koulibaly",club:"Al-Hilal",nation:"🇸🇳",pos:"DEF",rarity:"rare"},
+    {id:208,name:"Leonardo Bonucci",club:"Fenerbahce",nation:"🇮🇹",pos:"DEF",rarity:"rare"},
+    {id:209,name:"Leandro Paredes",club:"AS Roma",nation:"🇦🇷",pos:"MIL",rarity:"rare"},
+    {id:210,name:"Giovani Lo Celso",club:"Tottenham",nation:"🇦🇷",pos:"MIL",rarity:"rare"},
+    {id:211,name:"David de Gea",club:"Free Agent",nation:"🇪🇸",pos:"GK",rarity:"rare"},
+    {id:212,name:"Jordan Pickford",club:"Everton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"GK",rarity:"rare"},
+    {id:213,name:"Aaron Ramsdale",club:"Arsenal",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"GK",rarity:"rare"},
+    {id:214,name:"Nick Pope",club:"Newcastle",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"GK",rarity:"rare"},
+    {id:215,name:"Kasper Schmeichel",club:"Nice",nation:"🇩🇰",pos:"GK",rarity:"rare"},
+    {id:216,name:"Kepa Arrizabalaga",club:"Real Madrid",nation:"🇪🇸",pos:"GK",rarity:"rare"},
+    {id:217,name:"ter Stegen",club:"Barcelona",nation:"🇩🇪",pos:"GK",rarity:"rare"},
+    {id:218,name:"Bernd Leno",club:"Fulham",nation:"🇩🇪",pos:"GK",rarity:"rare"},
+    {id:219,name:"Emiliano Martinez",club:"Aston Villa",nation:"🇦🇷",pos:"GK",rarity:"rare"},
+    {id:220,name:"Peter Gulacsi",club:"RB Leipzig",nation:"🇭🇺",pos:"GK",rarity:"rare"},
+    {id:221,name:"Jorginho",club:"Arsenal",nation:"🇮🇹",pos:"MIL",rarity:"rare"},
+    {id:222,name:"Matheus Cunha",club:"Wolves",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:223,name:"Pedro",club:"Lazio",nation:"🇧🇷",pos:"ATT",rarity:"rare"},
+    {id:224,name:"Ciro Immobile",club:"Besiktas",nation:"🇮🇹",pos:"ATT",rarity:"rare"},
+    {id:225,name:"Paulinho",club:"Sporting",nation:"🇵🇹",pos:"ATT",rarity:"rare"},
+    {id:226,name:"Goncalo Guedes",club:"Wolves",nation:"🇵🇹",pos:"ATT",rarity:"rare"},
+    {id:227,name:"Demarai Gray",club:"Everton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:228,name:"Ivan Perisic",club:"Hajduk",nation:"🇭🇷",pos:"ATT",rarity:"rare"},
+    {id:229,name:"Stephan El Shaarawy",club:"AS Roma",nation:"🇮🇹",pos:"ATT",rarity:"rare"},
+    {id:230,name:"Alexis Sanchez",club:"Marseille",nation:"🇨🇱",pos:"ATT",rarity:"rare"},
+    {id:231,name:"Nicolás Jackson",club:"Chelsea",nation:"🇸🇳",pos:"ATT",rarity:"rare"},
+    {id:232,name:"Rasmus Hojlund",club:"Man United",nation:"🇩🇰",pos:"ATT",rarity:"rare"},
+    {id:233,name:"Brennan Johnson",club:"Tottenham",nation:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",pos:"ATT",rarity:"rare"},
+    {id:234,name:"Dejan Kulusevski",club:"Tottenham",nation:"🇸🇪",pos:"ATT",rarity:"rare"},
+    {id:235,name:"Jarrod Bowen",club:"West Ham",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:236,name:"Leon Bailey",club:"Aston Villa",nation:"🇯🇲",pos:"ATT",rarity:"rare"},
+    {id:237,name:"Luis Alberto",club:"Al-Qadsiah",nation:"🇪🇸",pos:"MIL",rarity:"rare"},
+    {id:238,name:"Sergio Canales",club:"Betis",nation:"🇪🇸",pos:"MIL",rarity:"rare"},
+    {id:239,name:"Mikel Merino",club:"Arsenal",nation:"🇪🇸",pos:"MIL",rarity:"rare"},
+    {id:240,name:"Mikel Oyarzabal",club:"Real Sociedad",nation:"🇪🇸",pos:"ATT",rarity:"rare"},
+    {id:241,name:"Take Kubo",club:"Real Sociedad",nation:"🇯🇵",pos:"ATT",rarity:"rare"},
+    {id:242,name:"Alexander Sorloth",club:"Atletico",nation:"🇳🇴",pos:"ATT",rarity:"rare"},
+    {id:243,name:"Dani Olmo",club:"Barcelona",nation:"🇪🇸",pos:"MIL",rarity:"rare"},
+    {id:244,name:"Odilon Kossounou",club:"Leverkusen",nation:"🇨🇮",pos:"DEF",rarity:"rare"},
+    {id:245,name:"Piero Hincapie",club:"Leverkusen",nation:"🇪🇨",pos:"DEF",rarity:"rare"},
+    {id:246,name:"Arnau Tenas",club:"PSG",nation:"🇪🇸",pos:"GK",rarity:"rare"},
+    {id:247,name:"Giorgi Mamardashvili",club:"Valencia",nation:"🇬🇪",pos:"GK",rarity:"rare"},
+    {id:248,name:"Patrick Bamford",club:"Leeds",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:249,name:"Ivan Toney",club:"Al-Ahli",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:250,name:"Dominic Calvert-Lewin",club:"Everton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"rare"},
+    {id:251,name:"Dean Henderson",club:"Crystal Palace",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"GK",rarity:"common"},
+    {id:252,name:"Sam Johnstone",club:"Crystal Palace",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"GK",rarity:"common"},
+    {id:253,name:"David Raya",club:"Arsenal",nation:"🇪🇸",pos:"GK",rarity:"common"},
+    {id:254,name:"Illan Meslier",club:"Leeds",nation:"🇫🇷",pos:"GK",rarity:"common"},
+    {id:255,name:"Łukasz Fabiański",club:"West Ham",nation:"🇵🇱",pos:"GK",rarity:"common"},
+    {id:256,name:"Caoimhin Kelleher",club:"Liverpool",nation:"🇮🇪",pos:"GK",rarity:"common"},
+    {id:257,name:"Loris Karius",club:"Free Agent",nation:"🇩🇪",pos:"GK",rarity:"common"},
+    {id:258,name:"Robin Olsen",club:"Aston Villa",nation:"🇸🇪",pos:"GK",rarity:"common"},
+    {id:259,name:"Lukas Hradecky",club:"Leverkusen",nation:"🇫🇮",pos:"GK",rarity:"common"},
+    {id:260,name:"Paulo Gazzaniga",club:"Fulham",nation:"🇦🇷",pos:"GK",rarity:"common"},
+    {id:261,name:"Max Kilman",club:"Wolves",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:262,name:"Conor Coady",club:"Leicester",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:263,name:"Lewis Dunk",club:"Brighton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:264,name:"Shane Duffy",club:"Fulham",nation:"🇮🇪",pos:"DEF",rarity:"common"},
+    {id:265,name:"Tim Ream",club:"Fulham",nation:"🇺🇸",pos:"DEF",rarity:"common"},
+    {id:266,name:"Issa Diop",club:"Fulham",nation:"🇫🇷",pos:"DEF",rarity:"common"},
+    {id:267,name:"Michael Keane",club:"Everton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:268,name:"James Tarkowski",club:"Everton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:269,name:"Jannik Vestergaard",club:"Leicester",nation:"🇩🇰",pos:"DEF",rarity:"common"},
+    {id:270,name:"Ben Mee",club:"Brentford",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:271,name:"Pontus Jansson",club:"Brentford",nation:"🇸🇪",pos:"DEF",rarity:"common"},
+    {id:272,name:"Harry Maguire",club:"Man United",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:273,name:"Victor Lindelof",club:"Man United",nation:"🇸🇪",pos:"DEF",rarity:"common"},
+    {id:274,name:"Diogo Dalot",club:"Man United",nation:"🇵🇹",pos:"DEF",rarity:"common"},
+    {id:275,name:"Luke Shaw",club:"Man United",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:276,name:"Ben White",club:"Arsenal",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:277,name:"Jakub Kiwior",club:"Arsenal",nation:"🇵🇱",pos:"DEF",rarity:"common"},
+    {id:278,name:"Takehiro Tomiyasu",club:"Arsenal",nation:"🇯🇵",pos:"DEF",rarity:"common"},
+    {id:279,name:"Matt Doherty",club:"Atletico",nation:"🇮🇪",pos:"DEF",rarity:"common"},
+    {id:280,name:"Kostas Tsimikas",club:"Liverpool",nation:"🇬🇷",pos:"DEF",rarity:"common"},
+    {id:281,name:"Tom Davies",club:"Everton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:282,name:"Abdoulaye Doucoure",club:"Everton",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:283,name:"Alex Iwobi",club:"Everton",nation:"🇳🇬",pos:"MIL",rarity:"common"},
+    {id:284,name:"James Milner",club:"Brighton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:285,name:"Ross Barkley",club:"Luton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:286,name:"Dele Alli",club:"Besiktas",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:287,name:"Curtis Jones",club:"Liverpool",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:288,name:"Jordan Henderson",club:"Ajax",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:289,name:"Alex Oxlade-Chamberlain",club:"Besiktas",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:290,name:"Tomáš Souček",club:"West Ham",nation:"🇨🇿",pos:"MIL",rarity:"common"},
+    {id:291,name:"Pablo Fornals",club:"West Ham",nation:"🇪🇸",pos:"MIL",rarity:"common"},
+    {id:292,name:"Saïd Benrahma",club:"Lyon",nation:"🇩🇿",pos:"ATT",rarity:"common"},
+    {id:293,name:"Moussa Sissoko",club:"Watford",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:294,name:"Kevin Kampl",club:"RB Leipzig",nation:"🇸🇮",pos:"MIL",rarity:"common"},
+    {id:295,name:"Konrad Laimer",club:"Bayern",nation:"🇦🇹",pos:"MIL",rarity:"common"},
+    {id:296,name:"Willy Caballero",club:"Free Agent",nation:"🇦🇷",pos:"GK",rarity:"common"},
+    {id:297,name:"Divock Origi",club:"Nottingham",nation:"🇧🇪",pos:"ATT",rarity:"common"},
+    {id:298,name:"Takumi Minamino",club:"Monaco",nation:"🇯🇵",pos:"ATT",rarity:"common"},
+    {id:299,name:"Danny Ings",club:"West Ham",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"common"},
+    {id:300,name:"Che Adams",club:"Southampton",nation:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pos:"ATT",rarity:"common"},
+    {id:301,name:"Armando Broja",club:"Chelsea",nation:"🇦🇱",pos:"ATT",rarity:"common"},
+    {id:302,name:"Michy Batshuayi",club:"Fenerbahce",nation:"🇧🇪",pos:"ATT",rarity:"common"},
+    {id:303,name:"Hatem Ben Arfa",club:"Retired",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:304,name:"Samir Nasri",club:"Retired",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:305,name:"Mathieu Valbuena",club:"Retired",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:306,name:"Bafetimbi Gomis",club:"Retired",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:307,name:"Kevin Gameiro",club:"Retired",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:308,name:"Gareth Bale",club:"Retired",nation:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",pos:"ATT",rarity:"common"},
+    {id:309,name:"Isco",club:"Betis",nation:"🇪🇸",pos:"MIL",rarity:"common"},
+    {id:310,name:"Dani Ceballos",club:"Real Madrid",nation:"🇪🇸",pos:"MIL",rarity:"common"},
+    {id:311,name:"Marco Asensio",club:"PSG",nation:"🇪🇸",pos:"ATT",rarity:"common"},
+    {id:312,name:"Lucas Ocampos",club:"Sevilla",nation:"🇦🇷",pos:"ATT",rarity:"common"},
+    {id:313,name:"Youssef En-Nesyri",club:"Fenerbahce",nation:"🇲🇦",pos:"ATT",rarity:"common"},
+    {id:314,name:"Rafi Mir",club:"Sevilla",nation:"🇪🇸",pos:"ATT",rarity:"common"},
+    {id:315,name:"Thomas Delaney",club:"Sevilla",nation:"🇩🇰",pos:"MIL",rarity:"common"},
+    {id:316,name:"Emilio Buendia",club:"Aston Villa",nation:"🇦🇷",pos:"MIL",rarity:"common"},
+    {id:317,name:"Lukas Klostermann",club:"RB Leipzig",nation:"🇩🇪",pos:"DEF",rarity:"common"},
+    {id:318,name:"Willi Orban",club:"RB Leipzig",nation:"🇩🇪",pos:"DEF",rarity:"common"},
+    {id:319,name:"Yussuf Poulsen",club:"RB Leipzig",nation:"🇩🇰",pos:"ATT",rarity:"common"},
+    {id:320,name:"Amadou Haidara",club:"RB Leipzig",nation:"🇲🇱",pos:"MIL",rarity:"common"},
+    {id:321,name:"Wout Weghorst",club:"Hoffenheim",nation:"🇳🇱",pos:"ATT",rarity:"common"},
+    {id:322,name:"Andrej Kramaric",club:"Hoffenheim",nation:"🇭🇷",pos:"ATT",rarity:"common"},
+    {id:323,name:"Ciro Immobile II",club:"Lazio",nation:"🇮🇹",pos:"ATT",rarity:"common"},
+    {id:324,name:"Felipe Anderson",club:"Palmeiras",nation:"🇧🇷",pos:"ATT",rarity:"common"},
+    {id:325,name:"Danilo Cataldi",club:"Fiorentina",nation:"🇮🇹",pos:"MIL",rarity:"common"},
+    {id:326,name:"Joaquin Correa",club:"Lazio",nation:"🇦🇷",pos:"ATT",rarity:"common"},
+    {id:327,name:"Patrick Schick",club:"Leverkusen",nation:"🇨🇿",pos:"ATT",rarity:"common"},
+    {id:328,name:"Adam Hlozek",club:"Leverkusen",nation:"🇨🇿",pos:"ATT",rarity:"common"},
+    {id:329,name:"Robert Andrich",club:"Leverkusen",nation:"🇩🇪",pos:"MIL",rarity:"common"},
+    {id:330,name:"Edmond Tapsoba",club:"Leverkusen",nation:"🇧🇫",pos:"DEF",rarity:"common"},
+    {id:331,name:"Paulo Henrique Ganso",club:"Fluminense",nation:"🇧🇷",pos:"MIL",rarity:"common"},
+    {id:332,name:"Éverton Ribeiro",club:"Flamengo",nation:"🇧🇷",pos:"MIL",rarity:"common"},
+    {id:333,name:"Arrascaeta",club:"Flamengo",nation:"🇺🇾",pos:"MIL",rarity:"common"},
+    {id:334,name:"Willian",club:"Fluminense",nation:"🇧🇷",pos:"ATT",rarity:"common"},
+    {id:335,name:"Mario Balotelli",club:"Adana",nation:"🇮🇹",pos:"ATT",rarity:"common"},
+    {id:336,name:"Graziano Pellè",club:"Retired",nation:"🇮🇹",pos:"ATT",rarity:"common"},
+    {id:337,name:"Daniele De Rossi",club:"Retired",nation:"🇮🇹",pos:"MIL",rarity:"common"},
+    {id:338,name:"Claudio Marchisio",club:"Retired",nation:"🇮🇹",pos:"MIL",rarity:"common"},
+    {id:339,name:"Alberto Aquilani",club:"Retired",nation:"🇮🇹",pos:"MIL",rarity:"common"},
+    {id:340,name:"Dani Alves",club:"Retired",nation:"🇧🇷",pos:"DEF",rarity:"common"},
+    {id:341,name:"Jordi Alba",club:"Inter Miami",nation:"🇪🇸",pos:"DEF",rarity:"common"},
+    {id:342,name:"Sergi Roberto",club:"Barcelona",nation:"🇪🇸",pos:"DEF",rarity:"common"},
+    {id:343,name:"Samuel Umtiti",club:"Como",nation:"🇫🇷",pos:"DEF",rarity:"common"},
+    {id:344,name:"Clement Lenglet",club:"Aston Villa",nation:"🇫🇷",pos:"DEF",rarity:"common"},
+    {id:345,name:"Marc Bartra",club:"Trabzonspor",nation:"🇪🇸",pos:"DEF",rarity:"common"},
+    {id:346,name:"Germán Pezzella",club:"Betis",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:347,name:"Guido Rodriguez",club:"Betis",nation:"🇦🇷",pos:"MIL",rarity:"common"},
+    {id:348,name:"Aitor Ruibal",club:"Betis",nation:"🇪🇸",pos:"DEF",rarity:"common"},
+    {id:349,name:"Nabil Fekir",club:"Betis",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:350,name:"Wissam Ben Yedder",club:"Monaco",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:351,name:"Eliesse Ben Seghir",club:"Monaco",nation:"🇲🇦",pos:"ATT",rarity:"common"},
+    {id:352,name:"Myron Boadu",club:"Monaco",nation:"🇳🇱",pos:"ATT",rarity:"common"},
+    {id:353,name:"Breel Embolo",club:"Monaco",nation:"🇨🇭",pos:"ATT",rarity:"common"},
+    {id:354,name:"Denis Zakaria",club:"Monaco",nation:"🇨🇭",pos:"MIL",rarity:"common"},
+    {id:355,name:"Mohamed Camara",club:"Monaco",nation:"🇬🇳",pos:"MIL",rarity:"common"},
+    {id:356,name:"Aleksandr Golovin",club:"Monaco",nation:"🇷🇺",pos:"MIL",rarity:"common"},
+    {id:357,name:"Vanderson",club:"Monaco",nation:"🇧🇷",pos:"DEF",rarity:"common"},
+    {id:358,name:"Caio Henrique",club:"Monaco",nation:"🇧🇷",pos:"DEF",rarity:"common"},
+    {id:359,name:"Wilfried Singo",club:"Monaco",nation:"🇨🇮",pos:"DEF",rarity:"common"},
+    {id:360,name:"Chrislain Matsima",club:"Monaco",nation:"🇫🇷",pos:"DEF",rarity:"common"},
+    {id:361,name:"Francisco Trincão",club:"Sporting",nation:"🇵🇹",pos:"ATT",rarity:"common"},
+    {id:362,name:"Marcus Edwards",club:"Sporting",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"common"},
+    {id:363,name:"Nuno Santos",club:"Sporting",nation:"🇵🇹",pos:"ATT",rarity:"common"},
+    {id:364,name:"João Palhinha",club:"Bayern",nation:"🇵🇹",pos:"MIL",rarity:"common"},
+    {id:365,name:"Sebastián Coates",club:"Sporting",nation:"🇺🇾",pos:"DEF",rarity:"common"},
+    {id:366,name:"Goncalo Inacio",club:"Sporting",nation:"🇵🇹",pos:"DEF",rarity:"common"},
+    {id:367,name:"Antonio Adan",club:"Sporting",nation:"🇪🇸",pos:"GK",rarity:"common"},
+    {id:368,name:"Gelson Martins",club:"Monaco",nation:"🇵🇹",pos:"ATT",rarity:"common"},
+    {id:369,name:"James Forrest",club:"Celtic",nation:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pos:"ATT",rarity:"common"},
+    {id:370,name:"Callum McGregor",club:"Celtic",nation:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pos:"MIL",rarity:"common"},
+    {id:371,name:"Kyogo Furuhashi",club:"Celtic",nation:"🇯🇵",pos:"ATT",rarity:"common"},
+    {id:372,name:"Daizen Maeda",club:"Celtic",nation:"🇯🇵",pos:"ATT",rarity:"common"},
+    {id:373,name:"Oh Hyeon-gyu",club:"Celtic",nation:"🇰🇷",pos:"ATT",rarity:"common"},
+    {id:374,name:"Paulo Bernardo",club:"Celtic",nation:"🇵🇹",pos:"MIL",rarity:"common"},
+    {id:375,name:"Aaron Mooy",club:"Celtic",nation:"🇦🇺",pos:"MIL",rarity:"common"},
+    {id:376,name:"Douglas Luiz",club:"Juventus",nation:"🇧🇷",pos:"MIL",rarity:"common"},
+    {id:377,name:"Boubacar Kamara",club:"Aston Villa",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:378,name:"Lucas Digne",club:"Aston Villa",nation:"🇫🇷",pos:"DEF",rarity:"common"},
+    {id:379,name:"Ezri Konsa",club:"Aston Villa",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:380,name:"Tyrone Mings",club:"Aston Villa",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:381,name:"Jhon Duran",club:"Aston Villa",nation:"🇨🇴",pos:"ATT",rarity:"common"},
+    {id:382,name:"Rodrigo Moreno",club:"Leeds",nation:"🇪🇸",pos:"ATT",rarity:"common"},
+    {id:383,name:"Crysencio Summerville",club:"Leeds",nation:"🇳🇱",pos:"ATT",rarity:"common"},
+    {id:384,name:"Stuart Dallas",club:"Leeds",nation:"🇮🇪",pos:"MIL",rarity:"common"},
+    {id:385,name:"Luke Ayling",club:"Leeds",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:386,name:"Pascal Struijk",club:"Leeds",nation:"🇳🇱",pos:"DEF",rarity:"common"},
+    {id:387,name:"James Milner",club:"Brighton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:388,name:"Mohamed Elneny",club:"Arsenal",nation:"🇪🇬",pos:"MIL",rarity:"common"},
+    {id:389,name:"João Moutinho",club:"Nottingham",nation:"🇵🇹",pos:"MIL",rarity:"common"},
+    {id:390,name:"Thomas Müller II",club:"Bayern",nation:"🇩🇪",pos:"ATT",rarity:"common"},
+    {id:391,name:"Axel Witsel",club:"Atletico",nation:"🇧🇪",pos:"MIL",rarity:"common"},
+    {id:392,name:"Marouane Fellaini",club:"Retired",nation:"🇧🇪",pos:"MIL",rarity:"common"},
+    {id:393,name:"Radja Nainggolan",club:"Retired",nation:"🇧🇪",pos:"MIL",rarity:"common"},
+    {id:400,name:"Eden Hazard",club:"Retired",nation:"🇧🇪",pos:"ATT",rarity:"common"},
+    {id:401,name:"Jan Vertonghen",club:"Anderlecht",nation:"🇧🇪",pos:"DEF",rarity:"common"},
+    {id:402,name:"Jason Denayer",club:"Free Agent",nation:"🇧🇪",pos:"DEF",rarity:"common"},
+    {id:403,name:"Koen Casteels",club:"Al-Qadsiah",nation:"🇧🇪",pos:"GK",rarity:"common"},
+    {id:404,name:"Simon Mignolet",club:"Club Brugge",nation:"🇧🇪",pos:"GK",rarity:"common"},
+    {id:405,name:"Romain Faivre",club:"Lyon",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:406,name:"Houssem Aouar",club:"Betis",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:407,name:"Jordan Veretout",club:"Marseille",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:408,name:"Valentin Rongier",club:"Marseille",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:409,name:"Elye Wahi",club:"Marseille",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:410,name:"Dimitri Payet",club:"Vasco",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:411,name:"Florian Thauvin",club:"Tigres",nation:"🇫🇷",pos:"ATT",rarity:"common"},
+    {id:412,name:"Chancel Mbemba",club:"Marseille",nation:"🇨🇩",pos:"DEF",rarity:"common"},
+    {id:413,name:"Leonardo Balerdi",club:"Marseille",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:414,name:"Pau Lopez",club:"Marseille",nation:"🇪🇸",pos:"GK",rarity:"common"},
+    {id:415,name:"Carlos Soler",club:"PSG",nation:"🇪🇸",pos:"MIL",rarity:"common"},
+    {id:416,name:"Borja Iglesias",club:"Betis",nation:"🇪🇸",pos:"ATT",rarity:"common"},
+    {id:417,name:"Hugo Duro",club:"Valencia",nation:"🇪🇸",pos:"ATT",rarity:"common"},
+    {id:418,name:"Joselu",club:"Real Madrid",nation:"🇪🇸",pos:"ATT",rarity:"common"},
+    {id:419,name:"Dani Wass",club:"Atletico",nation:"🇩🇰",pos:"DEF",rarity:"common"},
+    {id:420,name:"Matteo Guendouzi",club:"Lazio",nation:"🇫🇷",pos:"MIL",rarity:"common"},
+    {id:421,name:"Michael Obafemi",club:"Burnley",nation:"🇮🇪",pos:"ATT",rarity:"common"},
+    {id:422,name:"Eddie Nketiah",club:"Arsenal",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"common"},
+    {id:423,name:"Dara O'Shea",club:"Burnley",nation:"🇮🇪",pos:"DEF",rarity:"common"},
+    {id:424,name:"Craig Dawson",club:"West Ham",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:425,name:"Ethan Pinnock",club:"Brentford",nation:"🇯🇲",pos:"DEF",rarity:"common"},
+    {id:426,name:"Aaron Wan-Bissaka",club:"West Ham",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:427,name:"Matt Targett",club:"Newcastle",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:428,name:"Fabian Schar",club:"Newcastle",nation:"🇨🇭",pos:"DEF",rarity:"common"},
+    {id:429,name:"Jamaal Lascelles",club:"Newcastle",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:430,name:"Joelinton",club:"Newcastle",nation:"🇧🇷",pos:"MIL",rarity:"common"},
+    {id:431,name:"Elliot Anderson",club:"Newcastle",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:432,name:"Miguel Almiron",club:"Newcastle",nation:"🇵🇾",pos:"MIL",rarity:"common"},
+    {id:433,name:"Séamus Coleman",club:"Everton",nation:"🇮🇪",pos:"DEF",rarity:"common"},
+    {id:434,name:"Yerry Mina",club:"Everton",nation:"🇨🇴",pos:"DEF",rarity:"common"},
+    {id:435,name:"Kenny Tete",club:"Fulham",nation:"🇳🇱",pos:"DEF",rarity:"common"},
+    {id:436,name:"Tosin Adarabioyo",club:"Fulham",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:437,name:"Matt O'Riley",club:"Brighton",nation:"🇩🇰",pos:"MIL",rarity:"common"},
+    {id:438,name:"Adam Webster",club:"Brighton",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:439,name:"Philippe Coutinho II",club:"Aston Villa",nation:"🇧🇷",pos:"MIL",rarity:"common"},
+    {id:440,name:"Leon Goretzka II",club:"Bayern",nation:"🇩🇪",pos:"MIL",rarity:"common"},
+    {id:441,name:"Serge Gnabry",club:"Bayern",nation:"🇩🇪",pos:"ATT",rarity:"common"},
+    {id:442,name:"Sadio Mane II",club:"Al-Nassr",nation:"🇸🇳",pos:"ATT",rarity:"common"},
+    {id:443,name:"Neco Williams",club:"Nottingham",nation:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",pos:"DEF",rarity:"common"},
+    {id:444,name:"Nat Phillips",club:"Bournemouth",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:445,name:"Andy Robertson II",club:"Liverpool",nation:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",pos:"DEF",rarity:"common"},
+    {id:446,name:"Granit Xhaka II",club:"Leverkusen",nation:"🇨🇭",pos:"MIL",rarity:"common"},
+    {id:447,name:"Nicolas Otamendi II",club:"Benfica",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:448,name:"Marcos Rojo",club:"Estudiantes",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:449,name:"Ezequiel Lavezzi",club:"Retired",nation:"🇦🇷",pos:"ATT",rarity:"common"},
+    {id:450,name:"Tevez II",club:"Retired",nation:"🇦🇷",pos:"ATT",rarity:"common"},
+    {id:451,name:"Mascherano",club:"Retired",nation:"🇦🇷",pos:"MIL",rarity:"common"},
+    {id:452,name:"Zabaleta",club:"Retired",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:453,name:"Romero",club:"Free Agent",nation:"🇦🇷",pos:"GK",rarity:"common"},
+    {id:454,name:"Palacios",club:"Leverkusen",nation:"🇦🇷",pos:"MIL",rarity:"common"},
+    {id:455,name:"Molina",club:"Atletico",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:456,name:"Montiel",club:"Nottingham",nation:"🇦🇷",pos:"DEF",rarity:"common"},
+    {id:457,name:"Mac Allister II",club:"Liverpool",nation:"🇦🇷",pos:"MIL",rarity:"common"},
+    {id:458,name:"Delap",club:"Man City",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"common"},
+    {id:459,name:"Chukwuemeka",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"MIL",rarity:"common"},
+    {id:460,name:"Barnes",club:"Newcastle",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"ATT",rarity:"common"},
+    {id:461,name:"Chalobah",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:462,name:"Colwill",club:"Chelsea",nation:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",pos:"DEF",rarity:"common"},
+    {id:463,name:"Wes Burns",club:"Ipswich",nation:"🏴󠁧󠁢󠁷󠁬󠁳󠁿",pos:"ATT",rarity:"common"},
+    {id:464,name:"Sam Morsy",club:"Ipswich",nation:"🇪🇬",pos:"MIL",rarity:"common"},
+    {id:465,name:"Tuanzebe",club:"Free Agent",nation:"🇨🇩",pos:"DEF",rarity:"common"},
+    {id:466,name:"Leko",club:"Free Agent",nation:"🇨🇩",pos:"ATT",rarity:"common"},
+    {id:467,name:"Balogun",club:"Monaco",nation:"🇺🇸",pos:"ATT",rarity:"common"},
+    {id:468,name:"Tillman",club:"PSV",nation:"🇺🇸",pos:"ATT",rarity:"common"},
+    {id:469,name:"Musah",club:"AC Milan",nation:"🇺🇸",pos:"MIL",rarity:"common"},
+    {id:470,name:"Pulisic",club:"AC Milan",nation:"🇺🇸",pos:"ATT",rarity:"common"},
+    {id:471,name:"Reyna",club:"Dortmund",nation:"🇺🇸",pos:"ATT",rarity:"common"},
+    {id:472,name:"Tim Weah",club:"Juventus",nation:"🇺🇸",pos:"ATT",rarity:"common"},
+    {id:473,name:"Matt Turner",club:"Nottingham",nation:"🇺🇸",pos:"GK",rarity:"common"},
+    {id:474,name:"Zack Steffen",club:"Middlesbrough",nation:"🇺🇸",pos:"GK",rarity:"common"},
+    {id:475,name:"Lozano",club:"PSV",nation:"🇲🇽",pos:"ATT",rarity:"common"},
+    {id:476,name:"Jiménez",club:"Fulham",nation:"🇲🇽",pos:"ATT",rarity:"common"},
+    {id:477,name:"Edson Álvarez",club:"West Ham",nation:"🇲🇽",pos:"MIL",rarity:"common"},
+    {id:478,name:"Héctor Moreno",club:"Free Agent",nation:"🇲🇽",pos:"DEF",rarity:"common"},
+    {id:479,name:"Keylor Navas",club:"Free Agent",nation:"🇨🇷",pos:"GK",rarity:"common"},
+    {id:480,name:"Bryan Ruiz",club:"Retired",nation:"🇨🇷",pos:"ATT",rarity:"common"},
+    {id:481,name:"Mahrez",club:"Al-Ahli",nation:"🇩🇿",pos:"ATT",rarity:"common"},
+    {id:482,name:"Brahimi",club:"Al-Ahli",nation:"🇩🇿",pos:"ATT",rarity:"common"},
+    {id:483,name:"Slimani",club:"Retired",nation:"🇩🇿",pos:"ATT",rarity:"common"},
+    {id:484,name:"Feghouli",club:"Valencia",nation:"🇩🇿",pos:"ATT",rarity:"common"},
+    {id:485,name:"Djiga",club:"Besiktas",nation:"🇧🇫",pos:"DEF",rarity:"common"},
+    {id:486,name:"Habib Diallo",club:"Strasbourg",nation:"🇸🇳",pos:"ATT",rarity:"common"},
+    {id:487,name:"Sarr",club:"Crystal Palace",nation:"🇸🇳",pos:"ATT",rarity:"common"},
+    {id:488,name:"Idrissa Gueye",club:"Everton",nation:"🇸🇳",pos:"MIL",rarity:"common"},
+    {id:489,name:"Cheikhou Kouyaté",club:"Nottingham",nation:"🇸🇳",pos:"MIL",rarity:"common"},
+    {id:490,name:"Abdou Diallo",club:"RB Leipzig",nation:"🇸🇳",pos:"DEF",rarity:"common"},
+    {id:491,name:"Mamadou Ndiaye",club:"Lens",nation:"🇸🇳",pos:"DEF",rarity:"common"},
+    {id:492,name:"Krépin Diatta",club:"Monaco",nation:"🇸🇳",pos:"ATT",rarity:"common"},
+    {id:493,name:"Nicolas Pepe",club:"LOSC",nation:"🇨🇮",pos:"ATT",rarity:"common"},
+    {id:494,name:"Franck Kessié",club:"Al-Ahli",nation:"🇨🇮",pos:"MIL",rarity:"common"},
+    {id:495,name:"Wilfried Bony",club:"Retired",nation:"🇨🇮",pos:"ATT",rarity:"common"},
+    {id:496,name:"Gervinho",club:"Retired",nation:"🇨🇮",pos:"ATT",rarity:"common"},
+    {id:497,name:"Jonathan Kodjia",club:"Free Agent",nation:"🇨🇮",pos:"ATT",rarity:"common"},
+    {id:498,name:"Lamine Camara",club:"Monaco",nation:"🇸🇳",pos:"MIL",rarity:"common"},
+    {id:499,name:"Ilaix Moriba",club:"RB Leipzig",nation:"🇬🇳",pos:"MIL",rarity:"common"},
+    {id:500,name:"Naby Keïta",club:"Free Agent",nation:"🇬🇳",pos:"MIL",rarity:"common"}
+];
+
+let wallet = null;
+
+async function connectWallet() {
+    if (!window.ethereum) return showToast('❌', 'Installe Rainbow !');
+    try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        wallet = accounts[0];
+        const btn = document.getElementById('connectBtn');
+        btn.textContent = wallet.slice(0, 6) + "..." + wallet.slice(-4);
+        btn.classList.add('ok');
+        
+        await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x2105' }], 
+        });
+        showToast('✅', 'Connecté sur Base');
+    } catch (e) { console.error(e); }
+}
+
+async function runMint(playerId) {
+    if (!wallet) return showToast('⚠️', 'Connecte ton wallet');
+    
+    const btn = document.getElementById(`btn-${playerId}`);
+    btn.innerHTML = '<span class="spin"></span>';
+    btn.disabled = true;
+
+    try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(contractAddr, contractABI, signer);
+
+        const tx = await contract.mint(playerId);
+        showToast('⏳', 'Transaction envoyée...');
+        
+        await tx.wait();
+        showToast('⚽', 'Joueur minté !');
+        
+        let minted = JSON.parse(localStorage.getItem('fb_minted') || '[]');
+        minted.push(playerId);
+        localStorage.setItem('fb_minted', JSON.stringify(minted));
+        renderGrid();
+    } catch (err) {
+        console.error(err);
+        if (err.message.includes("Limite de 2")) {
+            showToast('🚫', 'Limite de 2/jour atteinte');
+        } else {
+            showToast('❌', 'Annulé');
+        }
+    } finally {
+        btn.innerHTML = 'MINT GRATUIT';
+        btn.disabled = false;
+    }
+}
+
+function showToast(icon, msg) {
+    const t = document.getElementById('toast');
+    document.getElementById('toastIcon').textContent = icon;
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function renderGrid() {
+    const grid = document.getElementById('nftGrid');
+    const minted = JSON.parse(localStorage.getItem('fb_minted') || '[]');
+    
+    grid.innerHTML = PLAYERS.map(p => {
+        const isMinted = minted.includes(p.id);
+        return `
+            <div class="card">
+                <div class="rarity-pill ${p.rarity}">${p.rarity}</div>
+                <div style="font-size:40px">${p.nation}</div>
+                <h3 style="margin:10px 0 5px">${p.name}</h3>
+                <p style="font-size:12px; color:var(--muted2)">${p.club} · ${p.pos}</p>
+                <button class="btn-mint" id="btn-${p.id}" ${isMinted ? 'disabled' : ''} onclick="runMint(${p.id})">
+                    ${isMinted ? 'DÉJÀ MINTÉ' : 'MINT GRATUIT'}
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+renderGrid();
+</script>
+</body>
+</html>
+
